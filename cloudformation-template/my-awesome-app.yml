@@ -3,7 +3,7 @@ Parameters:
   InstanceType:
     Description: WebServer EC2 instance type
     Type: String
-    Default: t4g.medium
+    Default: t4g.small
     AllowedValues: [t4g.small, t4g.medium, t4g.large, t4g.xlarge, t4g.2xlarge]
     ConstraintDescription: must be a valid EC2 instance type.
   AMIId:
@@ -16,6 +16,9 @@ Parameters:
   SubnetIds:
     Type: List<AWS::EC2::Subnet::Id>
     Default: "subnet-118f9167,subnet-95cec8a8,subnet-fecbe3a6,subnet-e296b8c8"
+  AZs:
+    Type: List<AWS::EC2::AvailabilityZone::Name>
+    Default: "us-east-1a,us-east-1b,us-east-1c,us-east-1e	"
   MinumumInstances:
     Type: String
     Default: "1"
@@ -32,7 +35,7 @@ Resources:
           default:
             - update
             - install
-            - configure-app
+            - configure-my-awesome-app
         update:
           commands:
             update:
@@ -47,10 +50,10 @@ Resources:
               git: []
               ruby: []
               wget: []
-        configure-app-app:
+        configure-my-awesome-app:
           commands:
             "01-clone-repo":
-              command: !Sub "git clone --depth 1 https://git-codecommit.us-east-1.amazonaws.com/v1/repos/sasa.git my-awesome-app"
+              command: !Sub "git clone --depth 1 https://github.com/salimpadela/yt-asg-demo.git my-awesome-app"
               cwd: /home/ec2-user/
             "02-install-pip-packages":
               command: pip3 install -r requirements.txt
@@ -60,12 +63,11 @@ Resources:
               cwd: /home/ec2-user/my-awesome-app/
             "04-reload systemctl daemon":
               command: systemctl daemon-reload
-            # "05-chmod-start-monolith-app-startup-script":
-            #   command: chmod +x ./start-monolith-app.sh
-            #   cwd: /home/ec2-user/my-awesome-app/codedeployhooks/
-            # "06-start-inventory-management-system-app":
-            #   command: ./start-monolith-app.sh
-            #   cwd: /home/ec2-user/my-awesome-app/codedeployhooks/
+              # "05-chmod-start-run-my-awesome-app-as-service":
+              #   command: chmod +x run-my-awesome-app-as-service.service
+              cwd: /etc/systemd/system
+            "06-start-run-my-awesome-app-as-service":
+              command: systemctl start run-my-awesome-app-as-service.service
           services:
             systemd:
               run-my-awesome-app-as-service.service:
@@ -87,6 +89,29 @@ Resources:
               DeleteOnTermination: true
               Encrypted: true
             DeviceName: /dev/sdb
+        UserData: !Base64
+          "Fn::Join":
+            - ""
+            - - |
+                #!/bin/bash
+              - |
+                sudo yum install -y aws-cfn-bootstrap
+              - "/opt/aws/bin/cfn-init -v "
+              - "         --stack "
+              - !Ref AWS::StackName
+              - "         --resource MyAwesomeAppLaunchTemplate "
+              - "         --region "
+              - !Ref AWS::Region
+              - "         --configsets default"
+              - |+
+
+              - /opt/aws/bin/cfn-signal -e $?
+              - " --stack "
+              - !Ref AWS::StackName
+              - " --resource MyAwesomeAppASG "
+              - " --region "
+              - !Ref AWS::Region
+              - |+
 
   MyAwesomeAppInstanceIAMRole:
     Type: AWS::IAM::Role
@@ -122,3 +147,14 @@ Resources:
       GroupName: "my-awesome-app-inst-sg"
       VpcId: !Ref VPCId
       GroupDescription: Instance Security Group
+
+  MyAwesomeAppASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: "my-awesome-app-asg"
+      AvailabilityZones: !Ref AZs
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MyAwesomeAppLaunchTemplate
+        Version: !GetAtt MyAwesomeAppLaunchTemplate.LatestVersionNumber
+      MinSize: !Ref MinumumInstances
+      MaxSize: !Ref MaximumInstances
