@@ -155,3 +155,60 @@ Resources:
         Version: !GetAtt MyAwesomeAppLaunchTemplate.LatestVersionNumber
       MinSize: !Ref MinumumInstances
       MaxSize: !Ref MaximumInstances
+      TargetGroupARNs:
+        - !Ref MyAwesomeAppALBTargetGroup
+
+  MyAwesomeAppALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "my-awesome-app-alb-sg"
+      VpcId: !Ref VPCId
+      GroupDescription: ALB Security Group
+
+  MyAwesomeAppInstanceSecurityGroupRulesForPort80:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt MyAwesomeAppInstanceSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: "80"
+      ToPort: "80"
+      SourceSecurityGroupId: !GetAtt MyAwesomeAppALBSecurityGroup.GroupId
+
+  MyAwesomeAppALBSecurityGroupRulesForPort80:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt MyAwesomeAppALBSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: "80"
+      ToPort: "80"
+      CidrIp: 0.0.0.0/0
+
+  MyAwesomeAppApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !GetAtt MyAwesomeAppALBSecurityGroup.GroupId
+
+  MyAwesomeAppALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /healthstatus
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      Port: 80
+      Protocol: "HTTP"
+      UnhealthyThresholdCount: 5
+      VpcId: !Ref "VPCId"
+
+  MyAwesomeAppALBListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MyAwesomeAppALBTargetGroup
+      LoadBalancerArn: !Ref MyAwesomeAppApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
