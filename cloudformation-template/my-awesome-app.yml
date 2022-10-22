@@ -63,10 +63,7 @@ Resources:
               cwd: /home/ec2-user/my-awesome-app/
             "04-reload systemctl daemon":
               command: systemctl daemon-reload
-              # "05-chmod-start-run-my-awesome-app-as-service":
-              #   command: chmod +x run-my-awesome-app-as-service.service
-              #   cwd: /etc/systemd/system
-            "06-start-run-my-awesome-app-as-service":
+            "05-start-run-my-awesome-app-as-service":
               command: systemctl start run-my-awesome-app-as-service.service
           services:
             systemd:
