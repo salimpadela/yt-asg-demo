@@ -1,0 +1,13 @@
+[Unit]
+Description=My Awesome App Service
+After=multi-user.target
+
+[Service]
+Type=simple
+StandardOutput=journal+console
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/home/ec2-user/my-awesome-app/
+ExecStart=/usr/bin/python3 -u /home/ec2-user/my-awesome-app/app.py
+
+[Install]
+WantedBy=multi-user.target

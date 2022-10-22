@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t4g.medium
+    AllowedValues: [t4g.small, t4g.medium, t4g.large, t4g.xlarge, t4g.2xlarge]
+    ConstraintDescription: must be a valid EC2 instance type.
+  AMIId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    # Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2"
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-02dc5565
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-118f9167,subnet-95cec8a8,subnet-fecbe3a6,subnet-e296b8c8"
+  MinumumInstances:
+    Type: String
+    Default: "1"
+  MaximumInstances:
+    Type: String
+    Default: "1"
+
+Resources:
+  MyAwesomeAppLaunchTemplate:
+    Type: "AWS::EC2::LaunchTemplate"
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default:
+            - update
+            - install
+            - configure-app
+        update:
+          commands:
+            update:
+              command: sudo yum update -y
+        install:
+          packages:
+            rpm:
+              https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm:
+                []
+            yum:
+              amazon-cloudwatch-agent: []
+              git: []
+              ruby: []
+              wget: []
+        configure-app-app:
+          commands:
+            "01-clone-repo":
+              command: !Sub "git clone --depth 1 https://git-codecommit.us-east-1.amazonaws.com/v1/repos/sasa.git my-awesome-app"
+              cwd: /home/ec2-user/
+            "02-install-pip-packages":
+              command: pip3 install -r requirements.txt
+              cwd: /home/ec2-user/my-awesome-app/
+            "03-copy-service-file-to-systemd-directory":
+              command: cp ./run-my-awesome-app-as-service.service /etc/systemd/system/
+              cwd: /home/ec2-user/my-awesome-app/
+            "04-reload systemctl daemon":
+              command: systemctl daemon-reload
+            # "05-chmod-start-monolith-app-startup-script":
+            #   command: chmod +x ./start-monolith-app.sh
+            #   cwd: /home/ec2-user/my-awesome-app/codedeployhooks/
+            # "06-start-inventory-management-system-app":
+            #   command: ./start-monolith-app.sh
+            #   cwd: /home/ec2-user/my-awesome-app/codedeployhooks/
+          services:
+            systemd:
+              run-my-awesome-app-as-service.service:
+                enabled: true
+
+    Properties:
+      LaunchTemplateName: "my-awesome-app-launch-template"
+      LaunchTemplateData:
+        InstanceType: !Ref "InstanceType"
+        IamInstanceProfile:
+          Name: !Ref "MyAwesomeAppInstanceIAMRoleInstanceProfile"
+        ImageId: !Ref "AMIId"
+        SecurityGroupIds:
+          - !GetAtt MyAwesomeAppInstanceSecurityGroup.GroupId
+        BlockDeviceMappings:
+          - Ebs:
+              VolumeSize: 20
+              VolumeType: gp3
+              DeleteOnTermination: true
+              Encrypted: true
+            DeviceName: /dev/sdb
+
+  MyAwesomeAppInstanceIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "my-awesome-app-iam-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+        - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+        - arn:aws:iam::aws:policy/AWSCodeCommitReadOnly
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+  MyAwesomeAppInstanceIAMRoleInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub my-awesome-app-inst-profile
+      Roles:
+        - !Ref MyAwesomeAppInstanceIAMRole
+
+  MyAwesomeAppInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "my-awesome-app-inst-sg"
+      VpcId: !Ref VPCId
+      GroupDescription: Instance Security Group
