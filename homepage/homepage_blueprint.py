@@ -11,7 +11,7 @@ def homepage():
         resp = r.json()
         instance_id = resp.get("instanceId")
         az = resp.get("availabilityZone")
-        resp = {f"instanceId":"{instance_id}","availabilityZone":f"{az}"}
+        resp = {"instanceId":f"{instance_id}","availabilityZone":f"{az}"}
 
     except:
         pass

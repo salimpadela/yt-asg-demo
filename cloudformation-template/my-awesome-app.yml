@@ -65,7 +65,7 @@ Resources:
               command: systemctl daemon-reload
               # "05-chmod-start-run-my-awesome-app-as-service":
               #   command: chmod +x run-my-awesome-app-as-service.service
-              cwd: /etc/systemd/system
+              #   cwd: /etc/systemd/system
             "06-start-run-my-awesome-app-as-service":
               command: systemctl start run-my-awesome-app-as-service.service
           services:
